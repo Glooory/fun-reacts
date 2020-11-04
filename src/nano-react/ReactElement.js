@@ -28,12 +28,18 @@ export function createElement(type, config, ...children) {
   }
 
   for (let propName in config) {
-    if (hasOwnProperty.call(config, propName) && !hasOwnProperty.call(REACT_ELEMENT_TYPE, propName)) {
+    if (hasOwnProperty.call(config, propName) && !hasOwnProperty.call(RESERVED_KEY, propName)) {
       props[propName] = config[propName];
     }
   }
 
-  props.children = children;
+  if (children.length === 1) {
+    props.children = children[0];
+  } if (children.length > 1) {
+    props.children = children;
+  } else {
+    props.children = null;
+  }
 
   return ReactElement(type, key, props)
 }
