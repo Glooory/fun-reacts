@@ -56,3 +56,100 @@ export interface BrowserHistory<S extends State = State> {
   listen(listener: Listener): () => void;
   block(blocker: Blocker): () => void;
 }
+
+type HistoryState = {
+  state: State;
+  key?: string;
+  index: number;
+}
+
+const popStateEvent = 'popstate';
+
+export function createPath({
+  pathname = '/',
+  search = '',
+  hash = '',
+}: PartialPath): string {
+  return `${pathname}${search}${hash}`;
+}
+
+interface EventListeners<EventListener> {
+  length: number
+  call(args: any): void;
+  add(listener: EventListener): () => void;
+}
+
+function createEventListeners<EventListener extends Function>(): EventListeners<EventListener> {
+  let listeners: EventListener[] = [];
+
+  function call(args: any): void {
+    listeners.forEach(fn => fn && fn(args));
+  }
+
+  function add(listener: EventListener): () => void {
+    listeners.push(listener);
+    return function () {
+      remove(listener);
+    }
+  }
+
+  function remove(listener: EventListener): void {
+    listeners = listeners.filter(fn => fn !== listener);
+  }
+
+  return {
+    get length() {
+      return listeners.length;
+    },
+    call,
+    add,
+  }
+}
+
+export function createBrowserHistory(options: { window?: Window } = {}): BrowserHistory {
+  let { window = document.defaultView! } = options;
+  let globalHistory: History = window.history;
+
+  function getIndexAndLocation(): [number, Location] {
+    const { pathname, search, hash } = window.location;
+    let state = globalHistory.state || {};
+
+    return [
+      state.index,
+      {
+        pathname,
+        search,
+        hash,
+        state: state.state || null,
+        key: state.key || 'default',
+      }
+    ]
+  }
+
+  let blockers: EventListeners<Blocker> = createEventListeners<Blocker>();
+  let blockedPopTx: Transition | null = null;
+  function handlePopStateEvent() {
+    if (blockedPopTx) {
+      blockers.call(blockedPopTx);
+      blockedPopTx = null;
+    } else {
+      // TODO
+
+    }
+  }
+
+  function createHref(to: To) {
+    if (typeof to === 'string') {
+      return to;
+    }
+
+    return createPath(to);
+  }
+
+  return {
+    action,
+    location,
+    createHref,
+  }
+
+}
