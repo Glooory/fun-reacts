@@ -110,6 +110,13 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   let { window = document.defaultView! } = options;
   let globalHistory: History = window.history;
 
+  let index: number;
+  let action = Action.Pop;
+  let location: Location;
+
+  const blockers: EventListeners<Blocker> = createEventListeners<Blocker>();
+  const listeners: EventListeners<Listener> = createEventListeners<Listener>();
+
   function getIndexAndLocation(): [number, Location] {
     const { pathname, search, hash } = window.location;
     let state = globalHistory.state || {};
@@ -126,7 +133,6 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     ]
   }
 
-  let blockers: EventListeners<Blocker> = createEventListeners<Blocker>();
   let blockedPopTx: Transition | null = null;
   function handlePopStateEvent() {
     if (blockedPopTx) {
@@ -134,8 +140,45 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
       blockedPopTx = null;
     } else {
       // TODO
-
+      const [currIndex, currLocation] = getIndexAndLocation();
+      const entryStepPopped = index - currIndex;
+      if (checkIsTransitionAllowed()) {
+        const update: Update = {
+          location: currLocation,
+          action: Action.Pop,
+        }
+        index = currIndex;
+        listeners.call(update);
+      } else {
+        go(entryStepPopped);
+        const [reversedIndex, reversedLocation] = getIndexAndLocation();
+        blockedPopTx = {
+          action: Action.Pop,
+          location: reversedLocation,
+          retry() {
+            go(-entryStepPopped);
+          }
+        }
+      }
     }
+  }
+
+  window.addEventListener(popStateEvent, handlePopStateEvent);
+
+  function checkIsTransitionAllowed() {
+    return blockers.length <= 0;
+  }
+
+  function go(delta: number) {
+    globalHistory.go(delta);
+  }
+
+  function forward() {
+    globalHistory.forward();
+  }
+
+  function back() {
+    globalHistory.back();
   }
 
   function createHref(to: To) {
@@ -150,6 +193,8 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     action,
     location,
     createHref,
+    go,
+    forward,
+    back,
   }
-
 }
