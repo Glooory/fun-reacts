@@ -221,6 +221,7 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
 
   window.addEventListener(popStateEvent, handlePopStateEvent);
 
+  // @ts-ignore
   if (typeof index === 'undefined') {
     const { pathname, search, hash } = window.location;
     replace({ pathname, search, hash }, globalHistory.state);
@@ -331,6 +332,7 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
 
   return {
     action,
+    // @ts-ignore
     location,
     createHref,
     go,
