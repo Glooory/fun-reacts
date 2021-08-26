@@ -248,7 +248,6 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     const [toPath, toUrl] = getPathAndUrlFromTo(to);
     const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
     if (allowTransition()) {
-      globalHistory.pushState(state, '', toUrl);
       const update: Update = {
         action: Action.Push,
         location,
@@ -268,7 +267,25 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   }
 
   function replace(to: To, state: State) {
+    const [toPath, toUrl] = getPathAndUrlFromTo(to);
+    const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
+    if (allowTransition()) {
+      const update: Update = {
+        action: Action.Replace,
+        location,
+      }
 
+      applyTransition(update, index);
+    } {
+      const blockedTx: Transition = {
+        action: Action.Replace,
+        location,
+        retry() {
+          push(to, state);
+        }
+      }
+      blockers.call(blockedTx);
+    }
   }
 
   function allowTransition() {
@@ -276,10 +293,12 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   }
 
   function applyTransition(update: Update, nextIndex: number) {
-    listeners.call(update);
+    const url = createPath(update.location);
+    globalHistory.pushState(update.location.state, '', url);
     index = nextIndex;
     location = update.location;
     action = update.action;
+    listeners.call(update);
   }
 
   function go(delta: number) {
