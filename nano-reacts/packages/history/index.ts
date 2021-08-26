@@ -73,6 +73,63 @@ export function createPath({
   return `${pathname}${search}${hash}`;
 }
 
+export function parsePath(path: string): PartialPath {
+  let pathname = '';
+  let search = '';
+  let hash = '';
+
+  if (path.indexOf('?') !== -1 && path.indexOf('#') !== -1) {
+    const searchIndex = path.indexOf('?');
+    const hashIndex = path.indexOf('#');
+    if (searchIndex < hashIndex) {
+      pathname = path.substring(0, searchIndex);
+      search = path.substring(searchIndex, hashIndex);
+      hash = path.substring(hashIndex, path.length - 1);
+    } else {
+      pathname = path.substring(0, hashIndex);
+      search = path.substring(searchIndex, path.length - 1);
+      hash = path.substring(hashIndex, searchIndex);
+    }
+
+    return { pathname, search, hash };
+  }
+
+  if (path.indexOf('?')) {
+    [pathname, search] = path.split('?');
+
+    return {
+      pathname,
+      search: `?${search}`,
+      hash,
+    }
+  }
+
+  if (path.indexOf('#')) {
+    [pathname, hash] = path.split('#');
+
+    return {
+      pathname,
+      search,
+      hash: `#${hash}`,
+    }
+  }
+
+  return { pathname: path, search, hash };
+}
+
+function getPathAndUrlFromTo(to: To): [PartialPath, string] {
+  let path: PartialPath;
+  let url: string;
+  if (typeof to === 'string') {
+    path = parsePath(to);
+    url = to;
+  } else {
+    path = to;
+    url = createPath(to);
+  }
+  return [path, url];
+}
+
 interface EventListeners<EventListener> {
   length: number
   call(args: any): void;
@@ -139,16 +196,15 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
       blockers.call(blockedPopTx);
       blockedPopTx = null;
     } else {
-      // TODO
       const [currIndex, currLocation] = getIndexAndLocation();
       const entryStepPopped = index - currIndex;
-      if (checkIsTransitionAllowed()) {
+      if (allowTransition()) {
         const update: Update = {
           location: currLocation,
           action: Action.Pop,
         }
-        index = currIndex;
-        listeners.call(update);
+
+        applyTransition(update, currIndex);
       } else {
         go(entryStepPopped);
         const [reversedIndex, reversedLocation] = getIndexAndLocation();
@@ -165,8 +221,65 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
 
   window.addEventListener(popStateEvent, handlePopStateEvent);
 
-  function checkIsTransitionAllowed() {
+  if (typeof index === 'undefined') {
+    const { pathname, search, hash } = window.location;
+    replace({ pathname, search, hash }, globalHistory.state);
+  }
+
+  function generateKey(): string {
+    return Math.random().toString(32).replace('0.', '');
+  }
+
+  function getNextIndexAndLocation(path: PartialPath, state: State, index: number): [number, Location] {
+    const { pathname = '/', search = '', hash = '' } = path;
+    return [
+      index,
+      {
+        pathname,
+        search,
+        hash,
+        key: generateKey(),
+        state: state,
+      }
+    ]
+  }
+
+  function push(to: To, state: State) {
+    const [toPath, toUrl] = getPathAndUrlFromTo(to);
+    const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
+    if (allowTransition()) {
+      globalHistory.pushState(state, '', toUrl);
+      const update: Update = {
+        action: Action.Push,
+        location,
+      }
+
+      applyTransition(update, index + 1);
+    } {
+      const blockedTx: Transition = {
+        action: Action.Push,
+        location,
+        retry() {
+          push(to, state);
+        }
+      }
+      blockers.call(blockedTx);
+    }
+  }
+
+  function replace(to: To, state: State) {
+
+  }
+
+  function allowTransition() {
     return blockers.length <= 0;
+  }
+
+  function applyTransition(update: Update, nextIndex: number) {
+    listeners.call(update);
+    index = nextIndex;
+    location = update.location;
+    action = update.action;
   }
 
   function go(delta: number) {
@@ -189,6 +302,14 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     return createPath(to);
   }
 
+  function listen(listener: Listener) {
+    return listeners.add(listener);
+  }
+
+  function block(blocker: Blocker) {
+    return blockers.add(blocker);
+  }
+
   return {
     action,
     location,
@@ -196,5 +317,9 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     go,
     forward,
     back,
+    push,
+    replace,
+    listen,
+    block,
   }
 }
