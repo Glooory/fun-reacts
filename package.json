@@ -1,5 +1,5 @@
 {
-  "name": "nano-reacts",
+  "name": "fun-reacts",
   "version": "1.0.0",
   "description": "",
   "private": true,
@@ -16,9 +16,9 @@
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Glooory/nano-reacts/issues"
+    "url": "https://github.com/Glooory/fun-reacts/issues"
   },
-  "homepage": "https://github.com/Glooory/nano-reacts#readme",
+  "homepage": "https://github.com/Glooory/fun-reacts#readme",
   "dependencies": {
     "@types/react": "^17.0.19",
     "@types/react-dom": "^17.0.9",
