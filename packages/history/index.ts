@@ -45,6 +45,7 @@ export interface Blocker<S extends State = State> {
 export type To = string | PartialPath;
 
 export interface BrowserHistory<S extends State = State> {
+  readonly length: number;
   readonly action: Action;
   readonly location: Location;
   createHref(to: To): string;
@@ -246,6 +247,8 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   }
 
   function push(to: To, state: State) {
+    console.log('push: ', to, state);
+
     const [toPath, toUrl] = getPathAndUrlFromTo(to);
     const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
     if (allowTransition()) {
@@ -331,6 +334,9 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   }
 
   return {
+    get length() {
+      return globalHistory.length;
+    },
     action,
     // @ts-ignore
     location,
