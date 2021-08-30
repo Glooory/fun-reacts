@@ -95,7 +95,7 @@ export function parsePath(path: string): PartialPath {
     return { pathname, search, hash };
   }
 
-  if (path.indexOf('?')) {
+  if (path.indexOf('?') !== -1) {
     [pathname, search] = path.split('?');
 
     return {
@@ -105,7 +105,7 @@ export function parsePath(path: string): PartialPath {
     }
   }
 
-  if (path.indexOf('#')) {
+  if (path.indexOf('#') !== -1) {
     [pathname, hash] = path.split('#');
 
     return {
@@ -247,10 +247,9 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   }
 
   function push(to: To, state: State) {
-    console.log('push: ', to, state);
-
     const [toPath, toUrl] = getPathAndUrlFromTo(to);
     const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
+
     if (allowTransition()) {
       const update: Update = {
         action: Action.Push,
