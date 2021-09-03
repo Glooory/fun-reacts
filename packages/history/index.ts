@@ -350,7 +350,6 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
       return globalHistory.length;
     },
     action,
-    // @ts-ignore
     location,
     createHref,
     go,
