@@ -223,7 +223,6 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
 
   window.addEventListener(popStateEvent, handlePopStateEvent);
 
-  // @ts-ignore
   if (typeof index === 'undefined') {
     const { pathname, search, hash } = window.location;
     index = 0;
