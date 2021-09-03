@@ -168,9 +168,8 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   let { window = document.defaultView! } = options;
   let globalHistory: History = window.history;
 
-  let index: number;
   let action = Action.Pop;
-  let location: Location;
+  let [index, location] = getIndexAndLocation();
 
   const blockers: EventListeners<Blocker> = createEventListeners<Blocker>();
   const listeners: EventListeners<Listener<Location>> = createEventListeners<Listener<Location>>();
@@ -198,24 +197,26 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
       blockedPopTx = null;
     } else {
       const [currIndex, currLocation] = getIndexAndLocation();
-      const entryStepPopped = index - currIndex;
-      if (allowTransition()) {
-        const update: Update = {
-          location: currLocation,
-          action: Action.Pop,
-        }
-
-        applyTransition(update, currIndex);
-      } else {
-        go(entryStepPopped);
-        const [reversedIndex, reversedLocation] = getIndexAndLocation();
-        blockedPopTx = {
-          action: Action.Pop,
-          location: reversedLocation,
-          retry() {
-            go(-entryStepPopped);
+      if (currLocation.key) {
+        const entryStepPopped = index - currIndex;
+        if (allowTransition()) {
+          index = currIndex;
+          location = currLocation;
+          action = Action.Pop;
+          listeners.call(location);
+        } else {
+          go(entryStepPopped);
+          const [reversedIndex, reversedLocation] = getIndexAndLocation();
+          blockedPopTx = {
+            action: Action.Pop,
+            location: reversedLocation,
+            retry() {
+              go(-entryStepPopped);
+            }
           }
         }
+      } else {
+        console.log('history entry is not created by history library...');
       }
     }
   }
@@ -225,6 +226,7 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   // @ts-ignore
   if (typeof index === 'undefined') {
     const { pathname, search, hash } = window.location;
+    index = 0;
     replace({ pathname, search, hash }, globalHistory.state);
   }
 
@@ -256,7 +258,7 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
         location,
       }
 
-      applyTransition(update, index + 1);
+      applyTransition(update, nextIndex);
     } {
       const blockedTx: Transition = {
         action: Action.Push,
@@ -278,7 +280,7 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
         location,
       }
 
-      applyTransition(update, index);
+      applyTransition(update, index, true);
     } {
       const blockedTx: Transition = {
         action: Action.Replace,
@@ -295,12 +297,24 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     return blockers.length <= 0;
   }
 
-  function applyTransition(update: Update, nextIndex: number) {
+  function applyTransition(update: Update, nextIndex: number, isReplace = false) {
     const url = createPath(update.location);
-    globalHistory.pushState(update.location.state, '', url);
+    const historyState: HistoryState = {
+      index: nextIndex,
+      key: update.location.key,
+      state: update.location.state,
+    }
+
+    if (isReplace) {
+      globalHistory.replaceState(historyState, '', url);
+    } else {
+      globalHistory.pushState(historyState, '', url);
+    }
+
     index = nextIndex;
     location = update.location;
     action = update.action;
+
     listeners.call(location);
   }
 
