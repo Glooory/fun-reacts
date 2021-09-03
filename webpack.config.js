@@ -27,5 +27,7 @@ module.exports = {
   devtool: 'inline-source-map',
   devServer: {
     static: './dist',
+    open: true,
+    historyApiFallback: true,
   }
 }

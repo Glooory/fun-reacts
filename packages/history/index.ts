@@ -52,8 +52,8 @@ export interface BrowserHistory<S extends State = State> {
   push(to: To, state?: S): void;
   replace(to: To, state?: S): void;
   go(delta: number): void;
-  forward(): void;
-  back(): void;
+  goForward(): void;
+  goBack(): void;
   listen(listener: Listener): () => void;
   block(blocker: Blocker): () => void;
 }
@@ -173,7 +173,7 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   let location: Location;
 
   const blockers: EventListeners<Blocker> = createEventListeners<Blocker>();
-  const listeners: EventListeners<Listener> = createEventListeners<Listener>();
+  const listeners: EventListeners<Listener<Location>> = createEventListeners<Listener<Location>>();
 
   function getIndexAndLocation(): [number, Location] {
     const { pathname, search, hash } = window.location;
@@ -301,18 +301,18 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     index = nextIndex;
     location = update.location;
     action = update.action;
-    listeners.call(update);
+    listeners.call(location);
   }
 
   function go(delta: number) {
     globalHistory.go(delta);
   }
 
-  function forward() {
+  function goForward() {
     globalHistory.forward();
   }
 
-  function back() {
+  function goBack() {
     globalHistory.back();
   }
 
@@ -341,8 +341,8 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     location,
     createHref,
     go,
-    forward,
-    back,
+    goForward,
+    goBack,
     push,
     replace,
     listen,
