@@ -1,5 +1,5 @@
-import React, { FC } from 'react';
-import { Link } from 'react-router-dom';
+import React, { FC, useCallback } from 'react';
+import { Link, useHistory } from 'react-router-dom';
 
 export interface Hero {
   name: string;
@@ -56,10 +56,20 @@ export const HEROES: Hero[] = [
 ]
 
 const HeroList: FC = () => {
+  const history = useHistory();
+
+  const handleToBaseBtnClick = useCallback(() => {
+    history.replace('/base');
+  }, []);
+
   return (
     <div>
-      { HEROES.map((hero) => <div key={hero.id}><Link to={`/hero/${hero.id}`}>{hero.localized_name}</Link></div>) }
+      <div>
+        { HEROES.map((hero) => <div key={hero.id}><Link to={`/hero/${hero.id}`}>{hero.localized_name}</Link></div>) }
+      </div>
+      <button onClick={handleToBaseBtnClick}>To Base</button>
     </div>
+
   )
 }
 
