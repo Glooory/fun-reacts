@@ -4,11 +4,10 @@ export enum Action {
   Replace = 'REPLACE',
 }
 
+export type State = object | null;
 export type Pathname = string;
 export type Search = string;
 export type Hash = string;
-export type State = object | null;
-export type Key = string;
 
 export interface Path {
   pathname: Pathname;
@@ -16,14 +15,14 @@ export interface Path {
   hash: Hash;
 }
 
-export interface PartialPath extends Partial<Path> {}
+export type PartialPath = Partial<Path>;
+
+export type To = string | PartialPath;
 
 export interface Location<S extends State = State> extends Path {
   state: S;
-  key: Key;
+  key: string;
 }
-
-export interface PartialLocation<S extends State = State> extends Partial<Location<S>> {}
 
 export interface Update<S extends State = State> {
   action: Action;
@@ -42,279 +41,162 @@ export interface Blocker<S extends State = State> {
   (tx: Transition<S>): void;
 }
 
-export type To = string | PartialPath;
+export interface HistoryState {
+  idx: number;
+  usr: State;
+  key: string;
+}
 
-export interface BrowserHistory<S extends State = State> {
+interface EventListener<L> {
   readonly length: number;
+  add(listener: L): () => void;
+  call(args?: any): void;
+}
+
+export interface BrowserHistory {
+  readonly index: number;
   readonly action: Action;
   readonly location: Location;
   createHref(to: To): string;
-  push(to: To, state?: S): void;
-  replace(to: To, state?: S): void;
   go(delta: number): void;
   goForward(): void;
   goBack(): void;
+  push(to: To, state: State): void;
+  replace(to: To, state: State): void;
   listen(listener: Listener): () => void;
   block(blocker: Blocker): () => void;
 }
 
-type HistoryState = {
-  state: State;
-  key?: string;
-  index: number;
-}
-
-const popStateEvent = 'popstate';
-
-export function createPath({
-  pathname = '/',
-  search = '',
-  hash = '',
-}: PartialPath): string {
-  return `${pathname}${search}${hash}`;
-}
-
-export function parsePath(path: string): PartialPath {
-  let pathname = '';
-  let search = '';
-  let hash = '';
-
-  if (path.indexOf('?') !== -1 && path.indexOf('#') !== -1) {
-    const searchIndex = path.indexOf('?');
-    const hashIndex = path.indexOf('#');
-    if (searchIndex < hashIndex) {
-      pathname = path.substring(0, searchIndex);
-      search = path.substring(searchIndex, hashIndex);
-      hash = path.substring(hashIndex, path.length - 1);
-    } else {
-      pathname = path.substring(0, hashIndex);
-      search = path.substring(searchIndex, path.length - 1);
-      hash = path.substring(hashIndex, searchIndex);
-    }
-
-    return { pathname, search, hash };
-  }
-
-  if (path.indexOf('?') !== -1) {
-    [pathname, search] = path.split('?');
-
-    return {
-      pathname,
-      search: `?${search}`,
-      hash,
-    }
-  }
-
-  if (path.indexOf('#') !== -1) {
-    [pathname, hash] = path.split('#');
-
-    return {
-      pathname,
-      search,
-      hash: `#${hash}`,
-    }
-  }
-
-  return { pathname: path, search, hash };
-}
-
-function getPathAndUrlFromTo(to: To): [PartialPath, string] {
-  let path: PartialPath;
-  let url: string;
-  if (typeof to === 'string') {
-    path = parsePath(to);
-    url = to;
-  } else {
-    path = to;
-    url = createPath(to);
-  }
-  return [path, url];
-}
-
-interface EventListeners<EventListener> {
-  length: number
-  call(args: any): void;
-  add(listener: EventListener): () => void;
-}
-
-function createEventListeners<EventListener extends Function>(): EventListeners<EventListener> {
-  let listeners: EventListener[] = [];
-
-  function call(args: any): void {
-    listeners.forEach(fn => fn && fn(args));
-  }
-
-  function add(listener: EventListener): () => void {
-    listeners.push(listener);
-    return function () {
-      remove(listener);
-    }
-  }
-
-  function remove(listener: EventListener): void {
-    listeners = listeners.filter(fn => fn !== listener);
-  }
-
-  return {
-    get length() {
-      return listeners.length;
-    },
-    call,
-    add,
-  }
-}
-
-export function createBrowserHistory(options: { window?: Window } = {}): BrowserHistory {
-  let { window = document.defaultView! } = options;
-  let globalHistory: History = window.history;
+export function createBrowserHistory(option: { window?: Window } = {}): BrowserHistory {
+  const popStateEventName = 'popstate';
+  const { window = document.defaultView! } = option;
+  const globalHistory = window.history;
 
   let action = Action.Pop;
   let [index, location] = getIndexAndLocation();
 
-  const blockers: EventListeners<Blocker> = createEventListeners<Blocker>();
-  const listeners: EventListeners<Listener<Location>> = createEventListeners<Listener<Location>>();
+  const listeners = createEventListener<Listener>();
+  const blockers = createEventListener<Blocker>();
+  let blockedTx: Transition | null;
 
   function getIndexAndLocation(): [number, Location] {
     const { pathname, search, hash } = window.location;
-    let state = globalHistory.state || {};
+    const state = globalHistory.state || {};
 
     return [
-      state.index,
+      state.idx,
       {
         pathname,
-        search,
         hash,
+        search,
         state: state.state || null,
         key: state.key || 'default',
       }
     ]
   }
 
-  let blockedPopTx: Transition | null = null;
   function handlePopStateEvent() {
-    if (blockedPopTx) {
-      blockers.call(blockedPopTx);
-      blockedPopTx = null;
+    if (blockedTx) {
+      blockers.call(blockedTx);
+      blockedTx = null;
     } else {
-      const [currIndex, currLocation] = getIndexAndLocation();
-      if (currLocation.key) {
-        const entryStepPopped = index - currIndex;
-        if (allowTransition()) {
-          index = currIndex;
-          location = currLocation;
-          action = Action.Pop;
-          listeners.call(location);
-        } else {
-          go(entryStepPopped);
-          const [reversedIndex, reversedLocation] = getIndexAndLocation();
-          blockedPopTx = {
-            action: Action.Pop,
-            location: reversedLocation,
-            retry() {
-              go(-entryStepPopped);
-            }
+      const nextAction = Action.Pop;
+      const [nextIndex, nextLocation] = getIndexAndLocation();
+
+      if (blockers.length) {
+        if (nextIndex != null) {
+          const delta = index - nextIndex;
+
+          if (delta) {
+            blockedTx = {
+              action: nextAction,
+              location: nextLocation,
+              retry() {
+                go(delta * -1);
+              }
+            };
+
+            go(delta);
           }
+        } else {
+          console.log('This entry is not been created by history...');
         }
       } else {
-        console.log('history entry is not created by history library...');
+        applyTransition(nextAction);
       }
     }
   }
 
-  window.addEventListener(popStateEvent, handlePopStateEvent);
+  window.addEventListener(popStateEventName, handlePopStateEvent);
 
-  if (typeof index === 'undefined') {
-    const { pathname, search, hash } = window.location;
+  if (index == null) {
     index = 0;
-    replace({ pathname, search, hash }, globalHistory.state);
-  }
-
-  function generateKey(): string {
-    return Math.random().toString(32).replace('0.', '');
-  }
-
-  function getNextIndexAndLocation(path: PartialPath, state: State, index: number): [number, Location] {
-    const { pathname = '/', search = '', hash = '' } = path;
-    return [
-      index,
-      {
-        pathname,
-        search,
-        hash,
-        key: generateKey(),
-        state: state,
-      }
-    ]
+    globalHistory.replaceState({ ...(globalHistory.state || {}), idx: index}, '');
   }
 
   function push(to: To, state: State) {
-    const [toPath, toUrl] = getPathAndUrlFromTo(to);
-    const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
+    const nextAction = Action.Push;
+    const nextLocation = getNextLocation(to, state);
+    function retry() {
+      push(to, state);
+    }
 
-    if (allowTransition()) {
-      const update: Update = {
-        action: Action.Push,
-        location,
-      }
-
-      applyTransition(update, nextIndex);
-    } {
-      const blockedTx: Transition = {
-        action: Action.Push,
-        location,
-        retry() {
-          push(to, state);
-        }
-      }
-      blockers.call(blockedTx);
+    if (allowTransition(nextAction, nextLocation, retry)) {
+      const [historyState, url] = getHistoryStateAndUrl(nextLocation, index + 1);
+      globalHistory.pushState(historyState, '', url);
+      applyTransition(nextAction);
     }
   }
 
   function replace(to: To, state: State) {
-    const [toPath, toUrl] = getPathAndUrlFromTo(to);
-    const [nextIndex, location] = getNextIndexAndLocation(toPath, state, index + 1);
-    if (allowTransition()) {
-      const update: Update = {
-        action: Action.Replace,
-        location,
-      }
-
-      applyTransition(update, index, true);
-    } {
-      const blockedTx: Transition = {
-        action: Action.Replace,
-        location,
-        retry() {
-          push(to, state);
-        }
-      }
-      blockers.call(blockedTx);
-    }
-  }
-
-  function allowTransition() {
-    return blockers.length <= 0;
-  }
-
-  function applyTransition(update: Update, nextIndex: number, isReplace = false) {
-    const url = createPath(update.location);
-    const historyState: HistoryState = {
-      index: nextIndex,
-      key: update.location.key,
-      state: update.location.state,
+    const nextAction = Action.Replace;
+    const nextLocation = getNextLocation(to, state);
+    function retry() {
+      replace(to, state);
     }
 
-    if (isReplace) {
+    if (allowTransition(nextAction, nextLocation, retry)) {
+      const [historyState, url] = getHistoryStateAndUrl(nextLocation, index);
       globalHistory.replaceState(historyState, '', url);
-    } else {
-      globalHistory.pushState(historyState, '', url);
+      applyTransition(Action.Replace);
     }
+  }
 
-    index = nextIndex;
-    location = update.location;
-    action = update.action;
+  function getNextLocation(to: To, state: State = null): Location {
+    return {
+      ...location,
+      ...(typeof to === 'string' ? parsePath(to) : to),
+      state,
+      key: createKey(),
+    }
+  }
 
+  function getHistoryStateAndUrl(location: Location, index: number): [HistoryState, string] {
+    return [
+      {
+        idx: index,
+        key: location.key,
+        usr: location.state
+      },
+      createHref(location),
+    ]
+  }
+
+  function allowTransition(action: Action, location: Location, retry: () => void) {
+    if (blockers.length <= 0) return true;
+    blockers.call({ action, location, retry });
+    return false;
+  }
+
+  function applyTransition(nextAction: Action) {
+    action = nextAction;
+    [index, location] = getIndexAndLocation();
+    // listeners.call({ action, location });
     listeners.call(location);
+  }
+
+  function createHref(to: To): string {
+    return typeof to === 'string' ? to : createPath(to);
   }
 
   function go(delta: number) {
@@ -329,14 +211,6 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     globalHistory.back();
   }
 
-  function createHref(to: To) {
-    if (typeof to === 'string') {
-      return to;
-    }
-
-    return createPath(to);
-  }
-
   function listen(listener: Listener) {
     return listeners.add(listener);
   }
@@ -346,11 +220,15 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
   }
 
   return {
-    get length() {
-      return globalHistory.length;
+    get index() {
+      return index;
     },
-    action,
-    location,
+    get action() {
+      return action;
+    },
+    get location() {
+      return location;
+    },
     createHref,
     go,
     goForward,
@@ -360,4 +238,63 @@ export function createBrowserHistory(options: { window?: Window } = {}): Browser
     listen,
     block,
   }
+}
+
+function createPath(path: PartialPath): string {
+  const { pathname = '/', hash = '', search = '' } = path;
+  return `${pathname}${hash}${search}`;
+}
+
+function parsePath(path: string): Path {
+  let pathname = '';
+  let hash = '';
+  let search = '';
+
+  if (path) {
+    const hashIndex = path.indexOf('#');
+    if (hashIndex >= 0) {
+      hash = path.substring(hashIndex);
+      path = path.substring(0, hashIndex);
+    }
+
+    const searchIndex = path.indexOf('?');
+    if (searchIndex >= 0) {
+      search = path.substring(searchIndex);
+      path = path.substring(0, searchIndex);
+    }
+
+    if (path) {
+      pathname = path;
+    }
+  }
+
+  return { pathname, hash, search };
+}
+
+function createEventListener<L extends Function>(): EventListener<L> {
+  let listeners: L[] = [];
+
+  function add(fn: L) {
+    listeners.push(fn);
+
+    return () => {
+      listeners = listeners.filter(f => f !== fn);
+    }
+  }
+
+  function call(args?: any) {
+    listeners.forEach(fn => fn && fn(args));
+  }
+
+  return {
+    get length() {
+      return listeners.length;
+    },
+    add,
+    call,
+  }
+}
+
+function createKey() {
+  return Math.random().toString(16).substring(2, 10);
 }
