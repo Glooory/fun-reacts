@@ -1,5 +1,5 @@
 import React from 'react';
-import { Router, BrowserRouter, Switch, Route, RouterProps } from 'react-router-dom';
+// import { BrowserRouter, Switch, Route, RouterProps } from 'react-router-dom';
 // import { createBrowserHistory } from 'history';
 import Home from './pages/Home';
 import { createBrowserHistory } from '../packages/history';
@@ -7,8 +7,11 @@ import HeroList from './pages/HeroList';
 import HeroBase from './pages/HeroBase';
 import HeroDetail from './pages/HeroDetail';
 import { History } from 'history';
+import Router from '../packages/router/Router';
+import Route from './../packages/router/Route';
+import Switch from '../packages/router/Switch';
 
-const history = createBrowserHistory() as unknown as History;
+const history = createBrowserHistory();
 
 const App = () => {
   return (

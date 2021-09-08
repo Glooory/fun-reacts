@@ -1,5 +1,7 @@
 import React, { FC, useCallback } from 'react';
-import { Link, useHistory } from 'react-router-dom';
+// import { Link, useHistory } from 'react-router-dom';
+import Link from '../../packages/router/Link';
+import { useHistory } from '../../packages/router/hooks';
 
 export interface Hero {
   name: string;
@@ -69,7 +71,6 @@ const HeroList: FC = () => {
       </div>
       <button onClick={handleToBaseBtnClick}>To Base</button>
     </div>
-
   )
 }
 

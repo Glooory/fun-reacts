@@ -1,6 +1,7 @@
 import React, { FC, useCallback, useEffect, useRef, useState } from 'react';
-import { useHistory, useParams } from 'react-router-dom';
+// import { useHistory, useParams } from 'react-router-dom';
 import { Hero, HEROES } from './HeroList';
+import { useHistory, useParams } from '../../packages/router/hooks';
 
 const HeroDetail: FC = () => {
   const history = useHistory();

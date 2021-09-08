@@ -1,7 +1,8 @@
-import React from 'react';
-import { Link } from 'react-router-dom';
+import React, { FC } from 'react';
+// import { Link } from 'react-router-dom';
+import Link from '../../packages/router/Link';
 
-const Home = () => {
+const Home: FC = () => {
   return (
     <div>
       <div>Home</div>

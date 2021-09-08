@@ -53,18 +53,20 @@ interface EventListener<L> {
   call(args?: any): void;
 }
 
-export interface BrowserHistory {
-  readonly index: number;
+export interface History<S extends State = State> {
   readonly action: Action;
-  readonly location: Location;
+  readonly location: Location<S>;
   createHref(to: To): string;
   go(delta: number): void;
   goForward(): void;
   goBack(): void;
-  push(to: To, state: State): void;
-  replace(to: To, state: State): void;
-  listen(listener: Listener): () => void;
-  block(blocker: Blocker): () => void;
+  push(to: To, state?: S): void;
+  replace(to: To, state?: S): void;
+  listen(listener: Listener<S>): () => void;
+  block(blocker: Blocker<S>): () => void;
+}
+
+export interface BrowserHistory<S extends State = State> extends History<S> {
 }
 
 export function createBrowserHistory(option: { window?: Window } = {}): BrowserHistory {
@@ -191,8 +193,8 @@ export function createBrowserHistory(option: { window?: Window } = {}): BrowserH
   function applyTransition(nextAction: Action) {
     action = nextAction;
     [index, location] = getIndexAndLocation();
-    // listeners.call({ action, location });
-    listeners.call(location);
+    listeners.call({ action, location });
+    // listeners.call(location);
   }
 
   function createHref(to: To): string {
@@ -220,9 +222,6 @@ export function createBrowserHistory(option: { window?: Window } = {}): BrowserH
   }
 
   return {
-    get index() {
-      return index;
-    },
     get action() {
       return action;
     },
